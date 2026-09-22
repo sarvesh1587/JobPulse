@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jobpulse
+      POSTGRES_USER: jobpulse
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-jobpulse}
+    ports:
+      - "5432:5432"
+    volumes:
+      - jobpulse_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobpulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/jobpulse
+      DB_USERNAME: jobpulse
+      DB_PASSWORD: ${DB_PASSWORD:-jobpulse}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+    ports:
+      - "8080:8080"
+
+volumes:
+  jobpulse_pg_data:

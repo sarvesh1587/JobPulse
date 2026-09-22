@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:jobpulse_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+jobpulse:
+  jwt:
+    secret: test-only-secret-not-for-production-use-1234567890
+    access-token-minutes: 30
+    refresh-token-days: 14
+  cors:
+    allowed-origins: http://localhost:5173

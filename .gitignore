@@ -1,0 +1,53 @@
+# Java / Maven
+backend/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Environment & secrets
+backend/.env
+*.env
+!.env.example
+.env.local
+
+# Extracted JDK
+jdk-21*/
+jdk*/
+openjdk*/
+oracleJdk*/
+jdk-*/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-error.log*
+
+# Python
+ai-service/venv/
+ai-service/.venv/
+ai-service/**/__pycache__/
+ai-service/**/*.pyc
+ai-service/.pytest_cache/
+
+# Runtime data
+backend/data/
+ai-service/data/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+# TypeScript build cache
+*.tsbuildinfo
