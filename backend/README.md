@@ -1,116 +1,319 @@
-# JobPulse Backend
+# JobPulse
 
-Spring Boot 3 (Java 21) core API for JobPulse. Handles auth, candidate
-profiles, job search, and ingesting listings from Greenhouse, Lever, and
-Ashby's public job-board APIs.
+**Stop searching. Start targeting.**
 
-This is one phase of a larger build — see the root brief for the full
-product scope. The Python AI service (semantic matching, resume parsing,
-embeddings) is a separate, not-yet-built component this API will call into.
+> **Repo:** [github.com/sarvesh1587/JobPulse](https://github.com/sarvesh1587/JobPulse)
+> **Status:** In active development · **Last verified:** 2026-09-23
+> **Stack:** Java 21 · Spring Boot 3.3 · PostgreSQL · Redis · FastAPI · React 18 · TypeScript
 
-## What's actually here right now
+Job intelligence for students and early-career developers. Instead of
+showing thousands of listings, JobPulse scores every job against your
+actual profile — skills, experience, education, location, freshness — and
+explains _why_, so the question stops being "what jobs exist" and starts
+being "which ones are actually worth my time."
 
-- **Auth** — register/login, JWT (stateless, no server-side sessions)
-- **Jobs** — search/filter, detail view
-- **Profile** — get/update candidate profile
-- **Ingestion** — `JobSourceAdapter` implementations for Greenhouse, Lever,
-  and Ashby; a pipeline that fetches → validates → deduplicates → upserts →
-  records a verification row; a scheduler (disabled by default) and a manual
-  admin-only trigger endpoint. Includes a naive keyword-based skill tagger
-  (`JobUpsertService.tagSkillsNaively`) so ingested jobs actually end up
-  with `job_skills` rows for the matching engine to score against — this is
-  explicitly a placeholder for real NLP extraction, not a finished feature.
-- **Matching engine** (`GET /api/jobs/{id}/match`) — deterministic,
-  explainable scoring across skills/experience/education/location/
-  freshness, using the weights in `application.yml`. Every score comes with
-  matched/missing skills, concerns, and positive signals — see
-  `MatchingService`'s class comment for the honest limitations (education
-  scoring is a placeholder; the "job-type" weight is configured but not yet
-  used since there's no reliable candidate signal for it).
-- **Applications** (`/api/applications`) — save a job into the pipeline,
-  list your applications (each with its match score if one's been
-  computed), and PATCH status/next-action/notes as it moves through
-  Saved → Planning → Applied → Assessment → Interview → Offer/Rejected
-- **Resume upload/analysis** (`POST /api/resume/analyze`, multipart) —
-  extracts text from PDF/DOCX (Apache PDFBox / POI), then a naive
-  keyword-based pass detects skills against the known skill vocabulary plus
-  a rough education-level/graduation-year guess. **Nothing is saved unless
-  the request includes `consentToStore=true`** — per the brief's explicit
-  privacy requirement, the default call just returns what would be
-  detected, for review, and writes nothing to disk or the database. Same
-  "this is a placeholder for real NLP" caveat as the job-skill tagger.
-- **Skill gap** (`GET /api/skill-gap`) — scans the candidate's target roles
-  (from `preferredRoles` on their profile, falling back to a general recent-
-  postings scan if that's empty) against the most recent 300 active
-  listings, ranks which required skills show up most often that the
-  candidate doesn't have yet, and separately surfaces which of the
-  candidate's *own* skills are actually in demand for those roles. See
-  `SkillGapService`'s class comment for the scope simplifications.
-- **Company intelligence** (`/api/companies`, `/api/companies/{id}`) — open
-  roles, internship/entry-level counts, role distribution, top requested
-  skills, and locations, all computed strictly from currently ACTIVE
-  listings. No historical hiring trend is fabricated — the detail response
-  always says `"Not enough data yet"` for that field, per the brief. Public
-  endpoints, same as job search.
-- **Schema** — full Flyway migration covering every entity from the brief
-  (jobs, companies, skills, applications, match scores, skill gaps, resumes,
-  job verifications), even though not every table has a service/controller
-  wired up yet
+This is a portfolio project, built in phases and documented honestly at
+every stage — what's real, what's a placeholder, and what's still missing.
+See **Status** below before assuming any piece is production-ready.
 
-## What's not here yet
+---
 
-- The **Python AI service** itself — real skill extraction, resume parsing,
-  semantic matching
-- **Redis caching** — dependency and config are in, nothing uses it yet
-- Real **admin-role seeding** — the ingestion trigger endpoint checks for
-  `role = ADMIN`, but nothing currently creates an admin user
+## Repo layout
 
-## Important — this hasn't been compiled here
+Built as four separate pieces, unified into one repo:
 
-This sandbox's network allowlist doesn't include Maven Central, so I could
-not run `mvn compile` to verify this builds, unlike the frontend (where npm
-registry access let me verify every change with a real build). I've been
-careful, but **please run a build yourself before trusting this**:
-
-```bash
-mvn clean compile
+```
+jobpulse/
+├── landing/          # marketing/landing page (static HTML)
+├── frontend/         # React app — Overview, Discover, Applications, Skill Gap
+├── backend/          # Spring Boot API — auth, jobs, matching, ingestion
+├── ai-service/       # FastAPI — skill extraction, resume parsing, semantic match
+└── README.md         # this file
 ```
 
-If it doesn't compile, tell me the error and I'll fix it — I'd rather know
-than have this silently ship broken.
+Each subfolder has its own README with setup instructions specific to that
+piece — this file is the map, not a replacement for those.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Client
+        FE[React Frontend<br/>Vite + TS + Tailwind]
+        LP[Landing Page<br/>static HTML]
+    end
+
+    subgraph Core["Spring Boot Backend"]
+        API[REST API<br/>auth · jobs · profile · applications]
+        ING[Ingestion Pipeline<br/>fetch → validate → dedupe → upsert → verify]
+        MATCH[Matching Engine<br/>deterministic, explainable scoring]
+        SKILLGAP[Skill Gap Service]
+        COMP[Company Intelligence]
+    end
+
+    subgraph AI["Python AI Service (FastAPI)"]
+        SKILLS[Skill Extraction<br/>spaCy PhraseMatcher]
+        RESUME[Resume Parsing<br/>spaCy NER + regex]
+        SEMANTIC[Semantic Match<br/>sentence-transformers → TF-IDF fallback]
+    end
+
+    subgraph External["External ATS Job Boards"]
+        GH[Greenhouse]
+        LV[Lever]
+        AB[Ashby]
+    end
+
+    subgraph Data
+        PG[(PostgreSQL)]
+        RD[(Redis — configured,<br/>not yet wired)]
+    end
+
+    FE -->|JWT auth| API
+    LP -.->|planned| API
+    API --> PG
+    API -.->|not yet wired| RD
+    API -->|planned| AI
+    ING --> GH
+    ING --> LV
+    ING --> AB
+    ING --> PG
+    MATCH --> PG
+    SKILLGAP --> PG
+    COMP --> PG
+    API --> ING
+    API --> MATCH
+    API --> SKILLGAP
+    API --> COMP
+```
+
+Dotted lines mark connections that are designed but not implemented yet —
+see Status.
+
+### Data flow: from a raw listing to a match score
+
+```mermaid
+sequenceDiagram
+    participant Source as Greenhouse/Lever/Ashby
+    participant Ing as IngestionService
+    participant DB as PostgreSQL
+    participant Match as MatchingService
+    participant User
+
+    Ing->>Source: GET public job board API
+    Source-->>Ing: raw jobs (source-specific shape)
+    Ing->>Ing: normalize into common Job shape
+    Ing->>Ing: validate (title, id, apply URL present)
+    Ing->>DB: dedupe check (external id, then company+title+location)
+    Ing->>DB: upsert Job + naive keyword skill tagging
+    Ing->>DB: record JobVerification
+
+    User->>Match: GET /api/jobs/{id}/match
+    Match->>DB: load candidate profile + skills
+    Match->>DB: load job + required skills
+    Match->>Match: score skills/experience/education/location/freshness
+    Match->>DB: persist MatchScore
+    Match-->>User: score + matched/missing skills + concerns + positive signals
+```
+
+---
+
+## Tech stack
+
+| Layer        | Stack                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Landing page | Static HTML/CSS/JS, no build step                                                                                  |
+| Frontend     | React 18, TypeScript, Vite, Tailwind CSS, React Router, lucide-react                                               |
+| Backend      | Java 21, Spring Boot 3.3, Spring Security (JWT), Spring Data JPA, PostgreSQL, Flyway, Redis (client wired, unused) |
+| AI service   | Python 3.12, FastAPI, spaCy, sentence-transformers (with TF-IDF/scikit-learn fallback)                             |
+| Ingestion    | Greenhouse, Lever, and Ashby public job-board APIs — no auth, no scraping                                          |
+
+---
+
+## Status
+
+Honesty over optics — this is what actually exists, not what the brief
+originally asked for. **Last verified: 2026-09-23.**
+
+### ✅ Built, runs, verified
+
+- **Backend** — compiles clean on Java 21, starts against real Postgres
+  (Docker), Flyway applies V1 + V2 migrations, and
+  `POST /api/auth/register` returns a valid JWT. The full chain
+  Postgres → JPA → Flyway → Spring Security → JWT is proven working
+  end to end.
+- **AI service** — server starts via `uvicorn`, all endpoints respond,
+  8/8 pytest tests pass. `/health` reports the `sentence-transformers`
+  backend active (not just the TF-IDF fallback).
+- **Frontend** — builds clean (`npm run build` verified), runs on Vite
+  dev server. Currently uses mock data.
+- **Landing page** — full design system, interactive hero demo, dark/light
+  theme, mobile nav.
+- **Ingestion pipeline** — real adapters for Greenhouse / Lever / Ashby
+  public APIs, fetch → validate → dedupe → upsert → verify, naive
+  keyword-based skill tagging.
+- **Matching engine** — deterministic, explainable scoring
+  (skills / experience / education / location / freshness) with
+  configurable weights. Never a bare number without a reason.
+
+### ⚠️ Known issues
+
+Being explicit about what's broken. These are all in active progress and
+will be fixed in follow-up commits.
+
+- **Flyway migration gap** — `V1__init_schema.sql` omits `created_at` and
+  `updated_at` on 9 tables that all extend `BaseEntity`. Currently worked
+  around with `spring.jpa.hibernate.ddl-auto=none` (set via env var).
+  A `V3__add_missing_base_entity_columns.sql` migration to backfill the
+  missing columns is in progress; once applied, `ddl-auto` can return to
+  `validate`.
+- **Backend test compilation** — `AuthServiceTest` fails to compile
+  because Lombok `@Builder` on `User` cannot see the inherited
+  `BaseEntity.id` field. Temporarily bypassed with
+  `-Dmaven.test.skip=true` when running. Fix in progress (either setter
+  post-build or migrate to `@SuperBuilder`).
+- **Redis** — dependency and config exist, nothing uses it yet.
+- **Admin role seeding** — the ingestion trigger endpoint checks for
+  `role = ADMIN`, but nothing currently creates an admin user.
+
+### ❌ Not built yet
+
+- **Frontend ↔ backend wiring** — the React app doesn't call the Spring
+  Boot API at all right now
+- **Backend ↔ AI service wiring** — Java's `MatchingService` and
+  `ResumeParsingService` still use their own local logic; they don't
+  call the FastAPI service
+- **Frontend pages**: Saved, Companies, Insights, Profile (stubs only)
+- **Docker Compose doesn't cover the AI service or the frontend yet**
+  (only Postgres, Redis, backend)
+
+### Can this go on GitHub right now?
+
+Yes — it's already there. A documented in-progress portfolio project is
+normal and expected. The README's job is to make sure nobody (including
+future-you) mistakes "in progress" for "broken" or "finished." The
+issue list above is intentionally specific so that anyone reading this
+knows exactly what works and what doesn't.
+
+---
 
 ## Local setup
 
-1. Copy `.env.example` to `.env` and fill in real values (a real
-   `JWT_SECRET` especially — generate one with `openssl rand -base64 64`).
-2. Start Postgres + Redis:
-   ```bash
-   docker compose up postgres redis -d
-   ```
-3. Run the app (it reads `.env` via your shell/IDE — Spring Boot doesn't
-   load `.env` files itself, so either `export $(cat .env | xargs)` first or
-   configure your IDE's run config with those environment variables):
-   ```bash
-   mvn spring-boot:run
-   ```
-4. Flyway runs the schema automatically on startup.
-5. API docs: `http://localhost:8080/api/docs/ui`
+### Prerequisites
 
-## Turning ingestion on
+- **Java 21** (Temurin recommended) — project targets Java 21
+- **Maven 3.9+**
+- **Node 18+** — verified on Node 22
+- **Python 3.11+** — verified on Python 3.12
+- **Docker Desktop** — for Postgres + Redis
 
-Ingestion is **off by default** (`INGESTION_ENABLED=false`) and ships with
-an empty target list — nothing calls an external ATS until you explicitly
-configure a company slug you've verified yourself. Add targets under
-`jobpulse.ingestion.targets` in `application.yml`, then set
-`INGESTION_ENABLED=true`.
-
-## Testing
+### 1. Infra (Postgres + Redis via Docker)
 
 ```bash
-mvn test
+cd backend
+docker compose up postgres redis -d
+docker compose ps    # both should be healthy/running
 ```
 
-Uses H2 in-memory (Postgres-compatible mode) for tests, so no local
-database is required to run the test suite. Currently covers: application
-context loads, and `AuthService` registration logic. More coverage is a
-follow-up.
+### 2. Backend (Spring Boot)
+
+```bash
+cd backend
+cp .env.example .env
+# Edit .env and set JWT_SECRET to a long random string:
+#   openssl rand -base64 64
+```
+
+Load `.env` into your shell, then run:
+
+```bash
+# Unix / Git Bash
+export $(cat .env | xargs)
+
+# Windows cmd
+for /f "usebackq tokens=1,* delims==" %i in (".env") do set "%i=%j"
+```
+
+Then:
+
+```bash
+mvn clean compile              # should BUILD SUCCESS
+mvn spring-boot:run -Dmaven.test.skip=true
+```
+
+Success looks like:
+
+```
+Started JobpulseApplication in X.XXX seconds
+```
+
+with Flyway logging:
+
+```
+Migrating schema "public" to version "1 - init schema"
+Migrating schema "public" to version "2 - seed skills"
+Successfully applied 2 migrations
+```
+
+**Smoke test:**
+
+```bash
+curl -s -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123","fullName":"Test User"}'
+# → {"accessToken":"...","userId":"...","email":"...","fullName":"..."}
+```
+
+Swagger UI: <http://localhost:8080/api/docs/ui>
+
+### 3. AI service (FastAPI)
+
+```bash
+cd ai-service
+python -m venv venv
+# Windows: venv\Scripts\activate
+source venv/bin/activate
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+uvicorn app.main:app --reload
+```
+
+**Health check:**
+
+```bash
+curl -s http://localhost:8000/health
+# → {"status":"ok","spacy_loaded":true,"embedding_backend_available":"transformer"}
+```
+
+Swagger UI: <http://localhost:8000/docs>
+
+### 4. Frontend (Vite + React)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Opens on <http://localhost:5173>. Runs on mock data for now — backend
+wiring is on the roadmap.
+
+---
+
+## What's next, in priority order
+
+1. `V3__add_missing_base_entity_columns.sql` migration to fix the
+   schema-validation gap; restore `ddl-auto=validate`
+2. Fix `AuthServiceTest` compilation; get `mvn test` green
+3. Wire the frontend to the backend (replace mock data with real API calls)
+4. Wire `MatchingService` / `ResumeParsingService` (Java) to the AI service
+5. Build the remaining frontend pages (Saved, Companies, Insights, Profile)
+6. Redis caching for hot queries (popular searches, company pages)
+7. Docker Compose covering all four services together
+
+---
+
+## License
+
+Portfolio project — no license granted for reuse without permission.
