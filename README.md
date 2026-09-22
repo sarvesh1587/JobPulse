@@ -1,224 +1,616 @@
-# JobPulse
+\# JobPulse
 
-**Stop searching. Start targeting.**
+
+
+\*\*Stop searching. Start targeting.\*\*
+
+
+
+> \*\*Repo:\*\* \[github.com/sarvesh1587/JobPulse](https://github.com/sarvesh1587/JobPulse)
+
+> \*\*Status:\*\* In active development · \*\*Last verified:\*\* 2026-09-23
+
+> \*\*Stack:\*\* Java 21 · Spring Boot 3.3 · PostgreSQL · Redis · FastAPI · React 18 · TypeScript
+
+
 
 Job intelligence for students and early-career developers. Instead of
+
 showing thousands of listings, JobPulse scores every job against your
+
 actual profile — skills, experience, education, location, freshness — and
-explains *why*, so the question stops being "what jobs exist" and starts
+
+explains \*why\*, so the question stops being "what jobs exist" and starts
+
 being "which ones are actually worth my time."
 
+
+
 This is a portfolio project, built in phases and documented honestly at
+
 every stage — what's real, what's a placeholder, and what's still missing.
-See **Status** below before assuming any piece is production-ready.
+
+See \*\*Status\*\* below before assuming any piece is production-ready.
+
+
 
 \---
 
-## Suggested repo layout
 
-This was built as four separate pieces. If you're assembling them into one
-repo, this layout matches what each piece's own README assumes:
+
+\## Screenshots
+
+
+
+!\[Discover — job list with match scores](docs/discover.png)
+
+
+
+!\[Overview — dashboard](docs/overview.png)
+
+
+
+!\[Applications — application tracker](docs/applications.png)
+
+
+
+!\[Skill Gap — missing skills analysis](docs/skill-gap.png)
+
+
+
+\---
+
+
+
+\## Repo layout
+
+
+
+Built as four separate pieces, unified into one repo:
+
+
 
 ```
+
 jobpulse/
+
 ├── landing/          # marketing/landing page (static HTML)
+
 ├── frontend/         # React app — Overview, Discover, Applications, Skill Gap
+
 ├── backend/          # Spring Boot API — auth, jobs, matching, ingestion
+
 ├── ai-service/       # FastAPI — skill extraction, resume parsing, semantic match
+
 └── README.md         # this file
+
 ```
+
+
 
 Each subfolder has its own README with setup instructions specific to that
+
 piece — this file is the map, not a replacement for those.
 
+
+
 \---
 
-## Architecture
+
+
+\## Architecture
+
+
 
 ```mermaid
+
 flowchart TB
-    subgraph Client
-        FE\[React Frontend<br/>Vite + TS + Tailwind]
-        LP\[Landing Page<br/>static HTML]
-    end
 
-    subgraph Core\["Spring Boot Backend"]
-        API\[REST API<br/>auth · jobs · profile · applications]
-        ING\[Ingestion Pipeline<br/>fetch → validate → dedupe → upsert → verify]
-        MATCH\[Matching Engine<br/>deterministic, explainable scoring]
-        SKILLGAP\[Skill Gap Service]
-        COMP\[Company Intelligence]
-    end
+&#x20;   subgraph Client
 
-    subgraph AI\["Python AI Service (FastAPI)"]
-        SKILLS\[Skill Extraction<br/>spaCy PhraseMatcher]
-        RESUME\[Resume Parsing<br/>spaCy NER + regex]
-        SEMANTIC\[Semantic Match<br/>sentence-transformers → TF-IDF fallback]
-    end
+&#x20;       FE\[React Frontend<br/>Vite + TS + Tailwind]
 
-    subgraph External\["External ATS Job Boards"]
-        GH\[Greenhouse]
-        LV\[Lever]
-        AB\[Ashby]
-    end
+&#x20;       LP\[Landing Page<br/>static HTML]
 
-    subgraph Data
-        PG\[(PostgreSQL)]
-        RD\[(Redis — configured,<br/>not yet wired)]
-    end
+&#x20;   end
 
-    FE -->|JWT auth| API
-    LP -.->|planned| API
-    API --> PG
-    API -.->|not yet wired| RD
-    API -->|planned| AI
-    ING --> GH
-    ING --> LV
-    ING --> AB
-    ING --> PG
-    MATCH --> PG
-    SKILLGAP --> PG
-    COMP --> PG
-    API --> ING
-    API --> MATCH
-    API --> SKILLGAP
-    API --> COMP
+
+
+&#x20;   subgraph Core\["Spring Boot Backend"]
+
+&#x20;       API\[REST API<br/>auth · jobs · profile · applications]
+
+&#x20;       ING\[Ingestion Pipeline<br/>fetch → validate → dedupe → upsert → verify]
+
+&#x20;       MATCH\[Matching Engine<br/>deterministic, explainable scoring]
+
+&#x20;       SKILLGAP\[Skill Gap Service]
+
+&#x20;       COMP\[Company Intelligence]
+
+&#x20;   end
+
+
+
+&#x20;   subgraph AI\["Python AI Service (FastAPI)"]
+
+&#x20;       SKILLS\[Skill Extraction<br/>spaCy PhraseMatcher]
+
+&#x20;       RESUME\[Resume Parsing<br/>spaCy NER + regex]
+
+&#x20;       SEMANTIC\[Semantic Match<br/>sentence-transformers → TF-IDF fallback]
+
+&#x20;   end
+
+
+
+&#x20;   subgraph External\["External ATS Job Boards"]
+
+&#x20;       GH\[Greenhouse]
+
+&#x20;       LV\[Lever]
+
+&#x20;       AB\[Ashby]
+
+&#x20;   end
+
+
+
+&#x20;   subgraph Data
+
+&#x20;       PG\[(PostgreSQL)]
+
+&#x20;       RD\[(Redis — configured,<br/>not yet wired)]
+
+&#x20;   end
+
+
+
+&#x20;   FE -->|JWT auth| API
+
+&#x20;   LP -.->|planned| API
+
+&#x20;   API --> PG
+
+&#x20;   API -.->|not yet wired| RD
+
+&#x20;   API -->|planned| AI
+
+&#x20;   ING --> GH
+
+&#x20;   ING --> LV
+
+&#x20;   ING --> AB
+
+&#x20;   ING --> PG
+
+&#x20;   MATCH --> PG
+
+&#x20;   SKILLGAP --> PG
+
+&#x20;   COMP --> PG
+
+&#x20;   API --> ING
+
+&#x20;   API --> MATCH
+
+&#x20;   API --> SKILLGAP
+
+&#x20;   API --> COMP
+
 ```
+
+
 
 Dotted lines mark connections that are designed but not implemented yet —
+
 see Status.
 
-### Data flow: from a raw listing to a match score
+
+
+\### Data flow: from a raw listing to a match score
+
+
 
 ```mermaid
+
 sequenceDiagram
-    participant Source as Greenhouse/Lever/Ashby
-    participant Ing as IngestionService
-    participant DB as PostgreSQL
-    participant Match as MatchingService
-    participant User
 
-    Ing->>Source: GET public job board API
-    Source-->>Ing: raw jobs (source-specific shape)
-    Ing->>Ing: normalize into common Job shape
-    Ing->>Ing: validate (title, id, apply URL present)
-    Ing->>DB: dedupe check (external id, then company+title+location)
-    Ing->>DB: upsert Job + naive keyword skill tagging
-    Ing->>DB: record JobVerification
+&#x20;   participant Source as Greenhouse/Lever/Ashby
 
-    User->>Match: GET /api/jobs/{id}/match
-    Match->>DB: load candidate profile + skills
-    Match->>DB: load job + required skills
-    Match->>Match: score skills/experience/education/location/freshness
-    Match->>DB: persist MatchScore
-    Match-->>User: score + matched/missing skills + concerns + positive signals
+&#x20;   participant Ing as IngestionService
+
+&#x20;   participant DB as PostgreSQL
+
+&#x20;   participant Match as MatchingService
+
+&#x20;   participant User
+
+
+
+&#x20;   Ing->>Source: GET public job board API
+
+&#x20;   Source-->>Ing: raw jobs (source-specific shape)
+
+&#x20;   Ing->>Ing: normalize into common Job shape
+
+&#x20;   Ing->>Ing: validate (title, id, apply URL present)
+
+&#x20;   Ing->>DB: dedupe check (external id, then company+title+location)
+
+&#x20;   Ing->>DB: upsert Job + naive keyword skill tagging
+
+&#x20;   Ing->>DB: record JobVerification
+
+
+
+&#x20;   User->>Match: GET /api/jobs/{id}/match
+
+&#x20;   Match->>DB: load candidate profile + skills
+
+&#x20;   Match->>DB: load job + required skills
+
+&#x20;   Match->>Match: score skills/experience/education/location/freshness
+
+&#x20;   Match->>DB: persist MatchScore
+
+&#x20;   Match-->>User: score + matched/missing skills + concerns + positive signals
+
 ```
 
-\---
 
-## Tech stack
-
-|Layer|Stack|
-|-|-|
-|Landing page|Static HTML/CSS/JS, no build step|
-|Frontend|React 18, TypeScript, Vite, Tailwind CSS, React Router, lucide-react|
-|Backend|Java 21, Spring Boot 3.3, Spring Security (JWT), Spring Data JPA, PostgreSQL, Flyway, Redis (client wired, unused)|
-|AI service|Python 3.12, FastAPI, spaCy, sentence-transformers (with TF-IDF/scikit-learn fallback)|
-|Ingestion|Greenhouse, Lever, and Ashby public job-board APIs — no auth, no scraping|
 
 \---
 
-## Status
+
+
+\## Tech stack
+
+
+
+| Layer | Stack |
+
+|---|---|
+
+| Landing page | Static HTML/CSS/JS, no build step |
+
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, React Router, lucide-react |
+
+| Backend | Java 21, Spring Boot 3.3, Spring Security (JWT), Spring Data JPA, PostgreSQL, Flyway, Redis (client wired, unused) |
+
+| AI service | Python 3.12, FastAPI, spaCy, sentence-transformers (with TF-IDF/scikit-learn fallback) |
+
+| Ingestion | Greenhouse, Lever, and Ashby public job-board APIs — no auth, no scraping |
+
+
+
+\---
+
+
+
+\## Status
+
+
 
 Honesty over optics — this is what actually exists, not what the brief
-originally asked for.
 
-### ✅ Built and working
+originally asked for. \*\*Last verified: 2026-09-23.\*\*
 
-* **Landing page** — full design system, interactive hero demo, all
-sections from the brief, dark/light theme, mobile nav
-* **Frontend app shell** — routing, sidebar, Overview / Discover /
-Applications / Skill Gap pages. Builds clean (`npm run build` verified).
-Runs entirely on mock data — **not wired to the backend yet**.
-* **Backend core** — auth, job search/detail, profile, application
-tracker, resume upload (consent-gated), skill gap computation, company
-intelligence — full Flyway schema for every entity in scope
-* **Ingestion pipeline** — real adapters for Greenhouse/Lever/Ashby's
-public APIs, fetch → validate → dedupe → upsert → verify, naive
-keyword-based skill tagging
-* **Matching engine** — deterministic, explainable scoring
-(skills/experience/education/location/freshness) with configurable
-weights, never a bare number without a reason
-* **AI service** — skill extraction and resume parsing (spaCy), semantic
-matching with automatic TF-IDF fallback when the transformer model isn't
-available. **This is the one component I actually ran and tested
-end-to-end** (server started, real HTTP requests, 8/8 pytest tests pass)
 
-### ⚠️ Built but unverified
 
-* **Backend compiles** — I wrote every line carefully, but the sandbox
-this was built in has no Maven Central access, so `mvn clean compile`
-has never actually been run against this code. **Run it yourself before
-trusting it.** If it fails, the fix is probably small — tell me the
-error.
-* **sentence-transformers path in the AI service** — the code is written,
-but torch/sentence-transformers couldn't be installed in this sandbox
-(disk + no Hugging Face Hub access), so only the TF-IDF fallback has
-actually been exercised.
+\### ✅ Built, runs, verified
 
-### ❌ Not built yet
 
-* **Frontend ↔ backend wiring** — the React app doesn't call the Spring
-Boot API at all right now
-* **Backend ↔ AI service wiring** — `ResumeParsingService` and
-`MatchingService` in Java still use their own naive logic; they don't
-call the FastAPI service
-* **Frontend pages**: Saved, Companies, Insights, Profile (stubs only)
-* **Redis caching** — dependency and config exist, nothing uses it
-* **Admin-role seeding** — the ingestion trigger endpoint checks for
-`role = ADMIN`, but nothing creates one
-* Docker Compose doesn't include the AI service yet (only Postgres, Redis,
-backend)
 
-### Can this go on GitHub right now?
+\- \*\*Backend\*\* — compiles clean on Java 21, starts against real Postgres
 
-Yes. A documented, in-progress portfolio project is normal and expected —
-this README's job is to make sure nobody (including future-you) mistakes
-"in progress" for "broken" or "finished." Do run the backend build
-yourself first so the repo isn't shipping an unverified claim as fact.
+&#x20; (Docker), Flyway applies V1 + V2 migrations, and
+
+&#x20; `POST /api/auth/register` returns a valid JWT. The full chain
+
+&#x20; Postgres → JPA → Flyway → Spring Security → JWT is proven working
+
+&#x20; end to end.
+
+\- \*\*AI service\*\* — server starts via `uvicorn`, all endpoints respond,
+
+&#x20; 8/8 pytest tests pass. `/health` reports the `sentence-transformers`
+
+&#x20; backend active (not just the TF-IDF fallback).
+
+\- \*\*Frontend\*\* — builds clean (`npm run build` verified), runs on Vite
+
+&#x20; dev server. Currently uses mock data.
+
+\- \*\*Landing page\*\* — full design system, interactive hero demo, dark/light
+
+&#x20; theme, mobile nav.
+
+\- \*\*Ingestion pipeline\*\* — real adapters for Greenhouse / Lever / Ashby
+
+&#x20; public APIs, fetch → validate → dedupe → upsert → verify, naive
+
+&#x20; keyword-based skill tagging.
+
+\- \*\*Matching engine\*\* — deterministic, explainable scoring
+
+&#x20; (skills / experience / education / location / freshness) with
+
+&#x20; configurable weights. Never a bare number without a reason.
+
+
+
+\### ⚠️ Known issues
+
+
+
+Being explicit about what's broken. These are all in active progress and
+
+will be fixed in follow-up commits.
+
+
+
+\- \*\*Flyway migration gap\*\* — `V1\_\_init\_schema.sql` omits `created\_at` and
+
+&#x20; `updated\_at` on 9 tables that all extend `BaseEntity`. Currently worked
+
+&#x20; around with `spring.jpa.hibernate.ddl-auto=none` (set via env var).
+
+&#x20; A `V3\_\_add\_missing\_base\_entity\_columns.sql` migration to backfill the
+
+&#x20; missing columns is in progress; once applied, `ddl-auto` can return to
+
+&#x20; `validate`.
+
+\- \*\*Backend test compilation\*\* — `AuthServiceTest` fails to compile
+
+&#x20; because Lombok `@Builder` on `User` cannot see the inherited
+
+&#x20; `BaseEntity.id` field. Temporarily bypassed with
+
+&#x20; `-Dmaven.test.skip=true` when running. Fix in progress (either setter
+
+&#x20; post-build or migrate to `@SuperBuilder`).
+
+\- \*\*Redis\*\* — dependency and config exist, nothing uses it yet.
+
+\- \*\*Admin role seeding\*\* — the ingestion trigger endpoint checks for
+
+&#x20; `role = ADMIN`, but nothing currently creates an admin user.
+
+
+
+\### ❌ Not built yet
+
+
+
+\- \*\*Frontend ↔ backend wiring\*\* — the React app doesn't call the Spring
+
+&#x20; Boot API at all right now
+
+\- \*\*Backend ↔ AI service wiring\*\* — Java's `MatchingService` and
+
+&#x20; `ResumeParsingService` still use their own local logic; they don't
+
+&#x20; call the FastAPI service
+
+\- \*\*Frontend pages\*\*: Saved, Companies, Insights, Profile (stubs only)
+
+\- \*\*Docker Compose doesn't cover the AI service or the frontend yet\*\*
+
+&#x20; (only Postgres, Redis, backend)
+
+
 
 \---
 
-## Local setup (short version — see each subfolder's README for detail)
+
+
+\## Local setup
+
+
+
+\### Prerequisites
+
+
+
+\- \*\*Java 21\*\* (Temurin recommended)
+
+\- \*\*Maven 3.9+\*\*
+
+\- \*\*Node 18+\*\* — verified on Node 22
+
+\- \*\*Python 3.11+\*\* — verified on Python 3.12
+
+\- \*\*Docker Desktop\*\* — for Postgres + Redis
+
+
+
+\### 1. Infra (Postgres + Redis via Docker)
+
+
 
 ```bash
-# 1. Infra
-cd backend \&\& docker compose up postgres redis -d
 
-# 2. Backend
-cd backend \&\& cp .env.example .env   # fill in a real JWT\_SECRET
-mvn clean compile                     # verify it builds — do this first
-mvn spring-boot:run
+cd backend
 
-# 3. AI service (separate terminal)
-cd ai-service
-python -m venv venv \&\& source venv/bin/activate
-pip install -r requirements.txt
-python -m spacy download en\_core\_web\_sm
-uvicorn app.main:app --reload
+docker compose up postgres redis -d
 
-# 4. Frontend (separate terminal)
-cd frontend
-npm install
-npm run dev
+docker compose ps
+
 ```
 
-## What's next, in priority order
 
-1. Verify the backend actually compiles and runs against real Postgres
-2. Wire the frontend to the backend (replace mock data with real API calls)
-3. Wire `MatchingService`/`ResumeParsingService` (Java) to the AI service
-4. Build the remaining frontend pages (Saved, Companies, Insights, Profile)
-5. Redis caching for hot queries (popular searches, company pages)
-6. Docker Compose covering all four pieces together
+
+\### 2. Backend (Spring Boot)
+
+
+
+```bash
+
+cd backend
+
+cp .env.example .env
+
+\# Edit .env and set JWT\_SECRET to a long random string
+
+```
+
+
+
+Load `.env` into your shell, then run:
+
+
+
+```bash
+
+\# Unix / Git Bash
+
+export $(cat .env | xargs)
+
+
+
+\# Windows cmd
+
+for /f "usebackq tokens=1,\* delims==" %i in (".env") do set "%i=%j"
+
+```
+
+
+
+Then:
+
+
+
+```bash
+
+mvn clean compile
+
+mvn spring-boot:run -Dmaven.test.skip=true
+
+```
+
+
+
+Success looks like `Started JobpulseApplication in X.XXX seconds` plus
+
+Flyway logging V1 and V2 migrations applied.
+
+
+
+\*\*Smoke test:\*\*
+
+
+
+```bash
+
+curl -s -X POST http://localhost:8080/api/auth/register \\
+
+&#x20; -H "Content-Type: application/json" \\
+
+&#x20; -d '{"email":"test@example.com","password":"password123","fullName":"Test User"}'
+
+```
+
+
+
+Swagger UI: <http://localhost:8080/api/docs/ui>
+
+
+
+\### 3. AI service (FastAPI)
+
+
+
+```bash
+
+cd ai-service
+
+python -m venv venv
+
+\# Windows: venv\\Scripts\\activate
+
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+python -m spacy download en\_core\_web\_sm
+
+uvicorn app.main:app --reload
+
+```
+
+
+
+\*\*Health check:\*\*
+
+
+
+```bash
+
+curl -s http://localhost:8000/health
+
+```
+
+
+
+Swagger UI: <http://localhost:8000/docs>
+
+
+
+\### 4. Frontend (Vite + React)
+
+
+
+```bash
+
+cd frontend
+
+npm install
+
+npm run dev
+
+```
+
+
+
+Opens on <http://localhost:5173>.
+
+
+
+\---
+
+
+
+\## What's next, in priority order
+
+
+
+1\. `V3\_\_add\_missing\_base\_entity\_columns.sql` migration to fix the
+
+&#x20;  schema-validation gap; restore `ddl-auto=validate`
+
+2\. Fix `AuthServiceTest` compilation; get `mvn test` green
+
+3\. Wire the frontend to the backend (replace mock data with real API calls)
+
+4\. Wire `MatchingService` / `ResumeParsingService` (Java) to the AI service
+
+5\. Build the remaining frontend pages (Saved, Companies, Insights, Profile)
+
+6\. Redis caching for hot queries (popular searches, company pages)
+
+7\. Docker Compose covering all four services together
+
+
+
+\---
+
+
+
+\## License
+
+
+
+Portfolio project — no license granted for reuse without permission.
 
