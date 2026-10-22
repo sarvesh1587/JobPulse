@@ -102,6 +102,10 @@ docker compose up --build
 
 Open http://localhost:8081. nginx serves the SPA and proxies `/api` to the backend, which isn't exposed directly.
 
+### Deploying (Render + Neon, free)
+
+The root `Dockerfile` builds one image that serves both the React app and the API. `render.yaml` sets up the Render service. Step-by-step guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ### Importing real listings (optional)
 
 Add boards under `jobpulse.ingestion.targets` in `application.yml` (or pass them as arguments), then trigger a run as an admin:
@@ -141,6 +145,8 @@ Backend integration tests start a real PostgreSQL binary (via `io.zonky.test:emb
 | `RESUME_STORAGE_DIR`, `RESUME_MAX_SIZE_MB` | backend | Where consented resumes are stored, and the size cap |
 | `INGESTION_ENABLED`, `INGESTION_INTERVAL_MINUTES` | backend | Scheduled ATS ingestion |
 | `DEV_SEED_PASSWORD` | backend (dev) | Password for the demo accounts |
+| `DEMO_DATA_ENABLED`, `DEMO_DATA_PASSWORD` | backend | Seed demo companies, jobs and accounts on a public deployment (no demo admin) |
+| `PORT` | backend | Port injected by hosts like Render (falls back to `SERVER_PORT`, then 8080) |
 | `VITE_API_BASE_URL` | frontend | API base (default `/api`) |
 | `VITE_DEV_API_PROXY` | frontend (dev) | Where Vite forwards `/api` |
 

@@ -44,7 +44,8 @@ spring:
       write-dates-as-timestamps: false
 
 server:
-  port: ${SERVER_PORT:8080}
+  # Hosts like Render inject PORT; locally SERVER_PORT or 8080.
+  port: ${PORT:${SERVER_PORT:8080}}
   # Trust X-Forwarded-For only from internal proxies (our nginx), so the
   # rate limiter sees the real client IP and clients can't spoof it.
   forward-headers-strategy: native
@@ -74,6 +75,11 @@ jobpulse:
   bootstrap:
     admin-email: ${ADMIN_EMAIL:}
     admin-password: ${ADMIN_PASSWORD:}
+  # Demo employers/jobs/candidate for a showcase deployment (see DevDataSeeder).
+  demo-data:
+    enabled: ${DEMO_DATA_ENABLED:false}
+    password: ${DEMO_DATA_PASSWORD:}
+    include-admin: false
   resume:
     storage-dir: ${RESUME_STORAGE_DIR:./data/resumes}
     max-size-bytes: ${RESUME_MAX_SIZE_BYTES:5242880}

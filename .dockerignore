@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/target
+**/.env
+**/.env.local
+backend/data
+jdk-*
+oracleJdk*
+ai-service
+.git
+.claude

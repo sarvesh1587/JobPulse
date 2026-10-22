@@ -3,9 +3,11 @@
 jobpulse:
   auth:
     cookie-secure: false   # local dev runs over plain http://localhost
-  dev-seed:
-    # Password for the demo accounts created by DevDataSeeder. Local use only.
+  demo-data:
+    # Demo employers, jobs and accounts (DevDataSeeder). Local use only.
+    enabled: true
     password: ${DEV_SEED_PASSWORD:jobpulse-demo}
+    include-admin: true
 
 logging:
   level:

@@ -53,3 +53,6 @@ logs/
 *.tsbuildinfo
 # Local Claude Code preview config (contains local-only secrets)
 .claude/launch.json
+
+# React build bundled into the jar by the root Dockerfile (never committed)
+backend/src/main/resources/static/
