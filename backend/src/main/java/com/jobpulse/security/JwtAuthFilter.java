@@ -1,6 +1,5 @@
 package com.jobpulse.security;
 
-import com.jobpulse.entity.User;
 import com.jobpulse.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -10,50 +9,38 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Optional;
-import java.util.UUID;
 
-@Component
+/**
+ * Turns a valid auth cookie into an authenticated SecurityContext for this
+ * request. No session is kept on the server (the API is stateless), so this
+ * runs on every request.
+ *
+ * It isn't a @Component on purpose: Spring Boot registers every Filter bean
+ * with the servlet container as well, which would run it twice. SecurityConfig
+ * creates it and adds it to the security filter chain only.
+ */
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final AuthCookieService authCookieService;
     private final UserRepository userRepository;
 
     @Override
-    protected void doFilterInternal(
-            @NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain
-    ) throws ServletException, IOException {
+    protected void doFilterInternal(@NonNull HttpServletRequest request,
+                                    @NonNull HttpServletResponse response,
+                                    @NonNull FilterChain chain) throws ServletException, IOException {
+        authCookieService.readToken(request)
+                .flatMap(jwtService::verify)
+                .flatMap(userRepository::findById)
+                .filter(user -> user.isActive())   // deactivated accounts lose access immediately
+                .map(UserPrincipal::new)
+                .ifPresent(principal -> SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities())));
 
-        String header = request.getHeader("Authorization");
-
-        if (header == null || !header.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        String token = header.substring(7);
-
-        if (jwtService.isValid(token)) {
-            UUID userId = jwtService.extractUserId(token);
-            Optional<User> userOpt = userRepository.findById(userId);
-
-            if (userOpt.isPresent() && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserPrincipal principal = new UserPrincipal(userOpt.get());
-                var authToken = new UsernamePasswordAuthenticationToken(
-                        principal, null, principal.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-            }
-        }
-
-        filterChain.doFilter(request, response);
+        chain.doFilter(request, response);
     }
 }

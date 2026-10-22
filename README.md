@@ -2,162 +2,88 @@
 
 **Stop searching. Start targeting.**
 
-**Repo:** [github.com/sarvesh1587/JobPulse](https://github.com/sarvesh1587/JobPulse)
-**Status:** In active development · **Last verified:** 2026-09-23
-**Stack:** Java 21 · Spring Boot 3.3 · PostgreSQL · Redis · FastAPI · React 18 · TypeScript
+JobPulse is a job discovery and application-tracking platform for students and early-career developers. Candidates search real listings, see an *explainable* match score for each one (skills, experience, education, location, freshness, plus exactly what's missing), apply, and track every application in one pipeline. Employers post roles and move applicants through stages. Admins moderate users and listings.
 
-Job intelligence for students and early-career developers. Instead of showing thousands of listings, JobPulse scores every job against your actual profile — skills, experience, education, location, freshness — and explains _why_, so the question stops being "what jobs exist" and starts being "which ones are actually worth my time."
-
-This is a portfolio project, built in phases and documented honestly at every stage — what's real, what's a placeholder, and what's still missing. See **Status** below before assuming any piece is production-ready.
+**Stack:** Java 21 · Spring Boot 3.5 · Spring Security · Spring Data JPA (Hibernate) · PostgreSQL · Flyway · React 18 · TypeScript · Vite · Tailwind CSS · TanStack Query
 
 ---
 
-## Screenshots
+## What works
 
-![Discover — job list with match scores](docs/discover.png)
+| Area | What you can do |
+| --- | --- |
+| Discovery | Keyword and location search, filters (type, level, work mode, salary, posted date), sorting, pagination. All of it lives in the URL, so it survives refresh, sharing and the back button. |
+| Job detail | Full description, skills, salary, company info, save/unsave, and an explainable match score for signed-in candidates. |
+| Applying | **Employer-posted jobs:** apply in-app with a cover note. **Imported jobs:** apply on the company's own site, then track it here. |
+| Tracker | Every application with its status, a progress bar, an audit-trail timeline, private notes, next step, interview time, and withdraw/re-apply. |
+| Dashboard | Real counts per stage, upcoming interviews, skill-based recommendations, recently saved jobs, and a profile-completeness checklist. |
+| Profile | Basics, target roles, skills (with autocomplete), education and experience entries, and resume upload. The resume is only stored if you tick consent. |
+| Skill gap | The skills that come up most in your target roles that you don't have yet, computed from live listings. |
+| Employers | Company profile, post/edit/close/reopen jobs, review applicants (profile + cover note), move them through the pipeline with interview times and notes. |
+| Admin | Platform stats, search users and deactivate them (takes effect immediately), take down any listing, trigger ATS ingestion. |
+| Ingestion | Pulls public job boards from Greenhouse, Lever and Ashby, with de-duplication and keyword skill tagging. Off until you configure a board. |
 
-![Overview — dashboard](docs/overview.png)
-
-![Applications — application tracker](docs/applications.png)
-
-![Skill Gap — missing skills analysis](docs/skill-gap.png)
+Nothing on screen is mocked. A new account shows empty states, not invented numbers.
 
 ---
 
-## Repo layout
-
-Built as four separate pieces, unified into one repo:
+## Repository layout
 
 ```
 jobpulse/
-├── landing/          # marketing/landing page (static HTML)
-├── frontend/         # React app — Overview, Discover, Applications, Skill Gap
-├── backend/          # Spring Boot API — auth, jobs, matching, ingestion
-├── ai-service/       # FastAPI — skill extraction, resume parsing, semantic match
-└── README.md         # this file
+├── backend/            Spring Boot API (layered: controller → service → repository)
+│   └── src/main/resources/db/migration   Flyway SQL migrations (V1–V4)
+├── frontend/           React SPA (Vite), served by nginx in Docker
+├── docs/
+│   ├── ARCHITECTURE.md     system design, ER diagram, auth flow, JPA, security review, testing, deployment
+│   ├── API.md              every endpoint with auth rules and examples
+│   └── INTERVIEW_GUIDE.md  project pitches, interview questions and answers, trade-offs
+└── docker-compose.yml  PostgreSQL + backend + frontend
 ```
 
-Each subfolder has its own README with setup instructions specific to that piece — this file is the map, not a replacement for those.
-
 ---
 
-## Tech stack
-
-| Layer        | Stack                                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------------------ |
-| Landing page | Static HTML/CSS/JS, no build step                                                                                  |
-| Frontend     | React 18, TypeScript, Vite, Tailwind CSS, React Router, lucide-react                                               |
-| Backend      | Java 21, Spring Boot 3.3, Spring Security (JWT), Spring Data JPA, PostgreSQL, Flyway, Redis (client wired, unused) |
-| AI service   | Python 3.12, FastAPI, spaCy, sentence-transformers (with TF-IDF/scikit-learn fallback)                             |
-| Ingestion    | Greenhouse, Lever, and Ashby public job-board APIs — no auth, no scraping                                          |
-
----
-
-## Status
-
-Honesty over optics — this is what actually exists, not what the brief originally asked for. **Last verified: 2026-09-23.**
-
-### ✅ Built, runs, verified
-
-- **Backend** — compiles clean on Java 21, starts against real Postgres (Docker), Flyway applies V1 + V2 migrations, and `POST /api/auth/register` returns a valid JWT. The full chain Postgres → JPA → Flyway → Spring Security → JWT is proven working end to end.
-- **AI service** — server starts via `uvicorn`, all endpoints respond, 8/8 pytest tests pass. `/health` reports the `sentence-transformers` backend active (not just the TF-IDF fallback).
-- **Frontend** — builds clean (`npm run build` verified), runs on Vite dev server. Currently uses mock data.
-- **Landing page** — full design system, interactive hero demo, dark/light theme, mobile nav.
-- **Ingestion pipeline** — real adapters for Greenhouse / Lever / Ashby public APIs, fetch → validate → dedupe → upsert → verify, naive keyword-based skill tagging.
-- **Matching engine** — deterministic, explainable scoring (skills / experience / education / location / freshness) with configurable weights. Never a bare number without a reason.
-
-### ⚠️ Known issues
-
-- **Flyway migration gap** — `V1__init_schema.sql` omits `created_at` and `updated_at` on 9 tables that all extend `BaseEntity`. Currently worked around with `spring.jpa.hibernate.ddl-auto=none`. A `V3__add_missing_base_entity_columns.sql` migration is in progress.
-- **Backend test compilation** — `AuthServiceTest` fails to compile because Lombok `@Builder` on `User` cannot see the inherited `BaseEntity.id` field. Temporarily bypassed with `-Dmaven.test.skip=true`. Fix in progress.
-- **Redis** — dependency and config exist, nothing uses it yet.
-- **Admin role seeding** — the ingestion trigger endpoint checks for `role = ADMIN`, but nothing currently creates an admin user.
-
-### ❌ Not built yet
-
-- **Frontend ↔ backend wiring** — the React app doesn't call the Spring Boot API yet
-- **Backend ↔ AI service wiring** — Java's `MatchingService` and `ResumeParsingService` still use local logic
-- **Frontend pages**: Saved, Companies, Insights, Profile (stubs only)
-- **Docker Compose doesn't cover the AI service or the frontend yet**
-
----
-
-## Local setup
+## Running it locally
 
 ### Prerequisites
+- **Java 21** (Temurin recommended). The Maven wrapper (`./mvnw`) downloads Maven for you.
+- **Node 18+** (tested on Node 22)
+- **PostgreSQL 14+** running locally, *or* Docker
 
-- **Java 21** (Temurin recommended)
-- **Maven 3.9+**
-- **Node 18+** — verified on Node 22
-- **Python 3.11+** — verified on Python 3.12
-- **Docker Desktop** — for Postgres + Redis
+### 1. Database
 
-### 1. Infra (Postgres + Redis via Docker)
+Create a database and user (any PostgreSQL client):
+
+```sql
+CREATE ROLE jobpulse LOGIN PASSWORD 'change-me';
+CREATE DATABASE jobpulse OWNER jobpulse;
+```
+
+Flyway creates every table when the backend starts. There's no manual schema step.
+
+### 2. Backend
 
 ```bash
 cd backend
-docker compose up postgres redis -d
-docker compose ps
+cp .env.example .env        # then set DB_PASSWORD and JWT_SECRET
+./mvnw spring-boot:run      # Windows: mvnw.cmd spring-boot:run
 ```
 
-### 2. Backend (Spring Boot)
+`backend/.env` is loaded automatically. The default profile is `dev`, which seeds **demo data** on an empty database: three fictional companies (all on `@example.com` addresses, marked as demo in their descriptions), 14 listings, and these accounts:
 
-```bash
-cd backend
-cp .env.example .env
-# Edit .env and set JWT_SECRET to a long random string
-```
+| Account | Email | Password |
+| --- | --- | --- |
+| Candidate | `candidate@example.com` | value of `DEV_SEED_PASSWORD` (default `jobpulse-demo`) |
+| Employer | `hiring@northwind.example.com` | same |
+| Admin | `admin@example.com` | same |
 
-Load `.env` into your shell, then run:
+Run with `SPRING_PROFILES_ACTIVE=prod` for a clean database with no seed data.
 
-```bash
-# Unix / Git Bash
-export $(cat .env | xargs)
+- API: http://localhost:8080/api
+- Swagger UI: http://localhost:8080/api/docs/ui (call `GET /api/auth/csrf` first, then `POST /api/auth/login`)
+- Health: http://localhost:8080/actuator/health
 
-# Windows cmd
-for /f "usebackq tokens=1,* delims==" %i in (".env") do set "%i=%j"
-```
-
-Then:
-
-```bash
-mvn clean compile
-mvn spring-boot:run -Dmaven.test.skip=true
-```
-
-Success looks like `Started JobpulseApplication in X.XXX seconds` plus Flyway logging V1 and V2 migrations applied.
-
-**Smoke test:**
-
-```bash
-curl -s -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"password123","fullName":"Test User"}'
-```
-
-Swagger UI: <http://localhost:8080/api/docs/ui>
-
-### 3. AI service (FastAPI)
-
-```bash
-cd ai-service
-python -m venv venv
-# Windows: venv\Scripts\activate
-source venv/bin/activate
-pip install -r requirements.txt
-python -m spacy download en_core_web_sm
-uvicorn app.main:app --reload
-```
-
-**Health check:**
-
-```bash
-curl -s http://localhost:8000/health
-```
-
-Swagger UI: <http://localhost:8000/docs>
-
-### 4. Frontend (Vite + React)
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -165,22 +91,68 @@ npm install
 npm run dev
 ```
 
-Opens on <http://localhost:5173>.
+Open http://localhost:5173. Vite forwards `/api` to `localhost:8080`, so the browser only ever talks to one origin.
+
+### Everything in Docker
+
+```bash
+cp .env.example .env    # set DB_PASSWORD and JWT_SECRET
+docker compose up --build
+```
+
+Open http://localhost:8081. nginx serves the SPA and proxies `/api` to the backend, which isn't exposed directly.
+
+### Importing real listings (optional)
+
+Add boards under `jobpulse.ingestion.targets` in `application.yml` (or pass them as arguments), then trigger a run as an admin:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.arguments="--jobpulse.ingestion.targets[0].source=GREENHOUSE --jobpulse.ingestion.targets[0].slug=gitlab"
+# then, signed in as admin: POST /api/admin/ingestion/run
+```
+
+Set `INGESTION_ENABLED=true` to also run it on a schedule (every `INGESTION_INTERVAL_MINUTES`).
 
 ---
 
-## What's next, in priority order
+## Tests
 
-1. `V3__add_missing_base_entity_columns.sql` migration to fix the schema-validation gap; restore `ddl-auto=validate`
-2. Fix `AuthServiceTest` compilation; get `mvn test` green
-3. Wire the frontend to the backend (replace mock data with real API calls)
-4. Wire `MatchingService` / `ResumeParsingService` (Java) to the AI service
-5. Build the remaining frontend pages (Saved, Companies, Insights, Profile)
-6. Redis caching for hot queries (popular searches, company pages)
-7. Docker Compose covering all four services together
+```bash
+cd backend && ./mvnw test        # 72 tests: unit + integration against a real embedded PostgreSQL
+cd frontend && npm test          # 13 unit tests (Vitest)
+cd frontend && npm run typecheck # strict TypeScript
+cd frontend && npm run build     # production build
+```
+
+Backend integration tests start a real PostgreSQL binary (via `io.zonky.test:embedded-postgres`, no Docker needed), run every Flyway migration, and drive the full Spring context, security filters included, through MockMvc. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing-strategy).
 
 ---
 
-## License
+## Environment variables
 
-Portfolio project — no license granted for reuse without permission.
+| Variable | Used by | Purpose |
+| --- | --- | --- |
+| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | backend | PostgreSQL connection |
+| `JWT_SECRET` | backend | HMAC key for auth tokens. **Required**, at least 32 bytes. The app refuses to start without it. |
+| `AUTH_TOKEN_TTL` | backend | Session length (default `12h`) |
+| `AUTH_COOKIE_SECURE` | backend | `true` behind HTTPS (the `prod` default), `false` for local http |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | backend | Creates the first admin on startup if none exists (password ≥ 12 chars) |
+| `CORS_ALLOWED_ORIGINS` | backend | Only needed if the SPA is hosted on a different origin |
+| `RESUME_STORAGE_DIR`, `RESUME_MAX_SIZE_MB` | backend | Where consented resumes are stored, and the size cap |
+| `INGESTION_ENABLED`, `INGESTION_INTERVAL_MINUTES` | backend | Scheduled ATS ingestion |
+| `DEV_SEED_PASSWORD` | backend (dev) | Password for the demo accounts |
+| `VITE_API_BASE_URL` | frontend | API base (default `/api`) |
+| `VITE_DEV_API_PROXY` | frontend (dev) | Where Vite forwards `/api` |
+
+Secrets live only in `.env` files, which are gitignored. Templates: [`.env.example`](.env.example), [`backend/.env.example`](backend/.env.example), [`frontend/.env.example`](frontend/.env.example).
+
+---
+
+## Known limitations
+
+These are documented honestly in [docs/INTERVIEW_GUIDE.md](docs/INTERVIEW_GUIDE.md#limitations-and-trade-offs). The short version:
+- Skill tagging and resume parsing are keyword matching against a skill catalogue, not NLP.
+- The auth rate limiter is in memory, per instance.
+- Sessions can't be revoked one at a time before they expire (deactivating a user does cut them off immediately).
+- There are no email notifications. Candidates see status changes in the app.
+- The Docker setup is written but wasn't run on the machine this was last verified on (no Docker available). The backend, frontend and database were verified running natively.

@@ -51,3 +51,5 @@ desktop.ini
 logs/
 # TypeScript build cache
 *.tsbuildinfo
+# Local Claude Code preview config (contains local-only secrets)
+.claude/launch.json

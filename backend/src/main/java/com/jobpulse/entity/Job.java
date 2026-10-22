@@ -4,11 +4,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -18,23 +17,41 @@ import java.time.Instant;
 
 @Getter
 @Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "jobs")
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Job extends BaseEntity {
 
-    @Column(name = "external_id", nullable = false)
+    /** INGESTED listings are applied to on the company's site; EMPLOYER listings in-app. */
+    public enum Origin { INGESTED, EMPLOYER }
+
+    public enum EmploymentType { INTERNSHIP, FULL_TIME, CONTRACT }
+
+    public enum ExperienceLevel { INTERN, ENTRY, MID, SENIOR }
+
+    public enum WorkMode { REMOTE, HYBRID, ONSITE }
+
+    /** Only ACTIVE jobs are searchable. CLOSED is set by an employer or an admin. */
+    public enum JobStatus { ACTIVE, STALE, EXPIRED, UNKNOWN, CLOSED }
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Origin origin = Origin.INGESTED;
+
+    @Column(name = "external_id")
     private String externalId;
 
-    @ManyToOne
-    @JoinColumn(name = "job_source_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_source_id")
     private JobSourceEntity jobSource;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "posted_by_id")
+    private User postedBy;
 
     @Column(nullable = false)
     private String title;
@@ -51,6 +68,10 @@ public class Job extends BaseEntity {
     private String normalizedLocation;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "work_mode")
+    private WorkMode workMode;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "employment_type")
     private EmploymentType employmentType;
 
@@ -64,15 +85,17 @@ public class Job extends BaseEntity {
     @Column(name = "salary_max")
     private BigDecimal salaryMax;
 
-    @Column(name = "application_url", nullable = false)
+    @Column(name = "salary_currency")
+    private String salaryCurrency;
+
+    @Column(name = "application_url")
     private String applicationUrl;
 
-    @Column(name = "source_url", nullable = false)
+    @Column(name = "source_url")
     private String sourceUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    @Builder.Default
     private JobStatus status = JobStatus.ACTIVE;
 
     @Column(name = "posted_at")
@@ -81,9 +104,11 @@ public class Job extends BaseEntity {
     @Column(name = "last_verified_at")
     private Instant lastVerifiedAt;
 
-    public enum EmploymentType { INTERNSHIP, FULL_TIME, CONTRACT }
+    public boolean acceptsInAppApplications() {
+        return origin == Origin.EMPLOYER;
+    }
 
-    public enum ExperienceLevel { INTERN, ENTRY, MID, SENIOR }
-
-    public enum JobStatus { ACTIVE, STALE, EXPIRED, UNKNOWN }
+    public boolean isOpen() {
+        return status == JobStatus.ACTIVE;
+    }
 }

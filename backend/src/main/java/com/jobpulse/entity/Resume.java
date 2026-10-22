@@ -2,27 +2,22 @@ package com.jobpulse.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.time.Instant;
 
 @Getter
-@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "resumes")
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Resume extends BaseEntity {
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "candidate_profile_id", nullable = false)
     private CandidateProfile candidateProfile;
 
@@ -37,4 +32,13 @@ public class Resume extends BaseEntity {
 
     @Column(name = "parsed_at")
     private Instant parsedAt;
+
+    public Resume(CandidateProfile candidateProfile, String fileName, String storagePath,
+                  String extractedText, Instant parsedAt) {
+        this.candidateProfile = candidateProfile;
+        this.fileName = fileName;
+        this.storagePath = storagePath;
+        this.extractedText = extractedText;
+        this.parsedAt = parsedAt;
+    }
 }
