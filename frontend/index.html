@@ -3,10 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>JobPulse — Discover</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <meta name="description" content="JobPulse finds the roles worth your time and shows exactly why you match." />
+    <title>JobPulse</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141510'/%3E%3Crect x='7' y='17' width='3.5' height='8' rx='1.5' fill='%23FF7A1E'/%3E%3Crect x='12.5' y='7' width='3.5' height='18' rx='1.5' fill='%23FF7A1E'/%3E%3Crect x='18' y='12' width='3.5' height='13' rx='1.5' fill='%23FF7A1E'/%3E%3Crect x='23.5' y='9' width='3.5' height='16' rx='1.5' fill='%23FF7A1E'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script>
+      // Set the theme before first paint so there's no flash of the wrong one.
+      (function () {
+        try {
+          var saved = localStorage.getItem('jobpulse-theme');
+          var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
