@@ -22,7 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -35,15 +35,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * DEMO DATA FOR LOCAL DEVELOPMENT ONLY. It runs only with the "dev" profile
- * and only when the demo accounts don't exist yet. It creates three fictional
- * employers (all on @example.com addresses, a domain reserved for examples),
- * their job listings, a demo candidate and a demo admin, so every screen has
- * something to show on a fresh database. Nothing here runs in production.
+ * DEMO DATA. Runs only when jobpulse.demo-data.enabled=true (on by default in
+ * the dev profile, opt-in with DEMO_DATA_ENABLED for a public demo), and only
+ * once: it does nothing if the demo candidate already exists. It creates three
+ * fictional employers (all on @example.com addresses, a domain reserved for
+ * examples), their listings and a demo candidate. A demo admin with the shared
+ * demo password is created only when include-admin is true (dev), never on a
+ * public deployment, where the admin comes from ADMIN_EMAIL/ADMIN_PASSWORD.
  */
 @Slf4j
 @Component
-@Profile("dev")
+@ConditionalOnProperty(prefix = "jobpulse.demo-data", name = "enabled", havingValue = "true")
 @Order(2)
 @RequiredArgsConstructor
 public class DevDataSeeder implements ApplicationRunner {
@@ -59,8 +61,11 @@ public class DevDataSeeder implements ApplicationRunner {
     private final SkillCatalogService skillCatalog;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${jobpulse.dev-seed.password}")
+    @Value("${jobpulse.demo-data.password:}")
     private String demoPassword;
+
+    @Value("${jobpulse.demo-data.include-admin:false}")
+    private boolean includeAdmin;
 
     private record DemoJob(String title, String location, Job.WorkMode mode, Job.EmploymentType type,
                            Job.ExperienceLevel level, Integer salaryMinLakh, Integer salaryMaxLakh,
@@ -73,6 +78,9 @@ public class DevDataSeeder implements ApplicationRunner {
     @Transactional
     public void run(ApplicationArguments args) {
         if (userRepository.existsByEmail(CANDIDATE_EMAIL)) return;
+        if (demoPassword == null || demoPassword.length() < 8) {
+            throw new IllegalStateException("Demo data is enabled: set DEMO_DATA_PASSWORD to at least 8 characters.");
+        }
 
         Job firstJob = null;
         for (DemoCompany demo : companies()) {
@@ -108,8 +116,10 @@ public class DevDataSeeder implements ApplicationRunner {
         application.changeStatus(ApplicationStatus.IN_REVIEW, firstJob.getPostedBy(), null);
         applicationRepository.save(application);
 
-        userRepository.save(new User("admin@example.com", passwordEncoder.encode(demoPassword), "Demo Admin", Role.ADMIN));
-        log.info("Seeded demo data (dev profile). Demo accounts use the password from jobpulse.dev-seed.password.");
+        if (includeAdmin) {
+            userRepository.save(new User("admin@example.com", passwordEncoder.encode(demoPassword), "Demo Admin", Role.ADMIN));
+        }
+        log.info("Seeded demo data. Demo accounts use the password from jobpulse.demo-data.password (admin included: {}).", includeAdmin);
     }
 
     private Job saveJob(Company company, User employer, DemoJob dj) {

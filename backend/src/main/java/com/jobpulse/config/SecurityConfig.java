@@ -80,7 +80,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/saved-jobs/**", "/api/applications/**", "/api/profile/**",
                         "/api/dashboard", "/api/skill-gap").hasRole("CANDIDATE")
-                .anyRequest().authenticated())
+                .requestMatchers("/api/**", "/actuator/**").authenticated()
+                // Everything else is the bundled React app (HTML, JS, CSS). Its pages
+                // are public; the data they load is protected by the rules above.
+                .anyRequest().permitAll())
             .addFilterBefore(new AuthRateLimitFilter(rateLimit, clock), UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(new JwtAuthFilter(jwtService, authCookieService, userRepository),
                     UsernamePasswordAuthenticationFilter.class);
