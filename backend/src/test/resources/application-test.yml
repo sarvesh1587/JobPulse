@@ -1,19 +1,14 @@
-spring:
-  datasource:
-    url: jdbc:h2:mem:jobpulse_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-  flyway:
-    enabled: false
-
+# Test profile. The datasource comes from IntegrationTest (embedded PostgreSQL),
+# which takes precedence over anything in a developer's backend/.env.
 jobpulse:
-  jwt:
-    secret: test-only-secret-not-for-production-use-1234567890
-    access-token-minutes: 30
-    refresh-token-days: 14
-  cors:
-    allowed-origins: http://localhost:5173
+  auth:
+    jwt-secret: test-only-secret-that-is-long-enough-for-hs256-signing
+    cookie-secure: false
+    rate-limit-per-minute: 1000
+  resume:
+    storage-dir: ${java.io.tmpdir}/jobpulse-test-resumes
+
+logging:
+  level:
+    com.jobpulse: INFO
+    org.flywaydb: WARN
