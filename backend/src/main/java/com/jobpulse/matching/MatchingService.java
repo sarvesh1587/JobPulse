@@ -27,18 +27,14 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Deterministic match scoring — the brief is explicit that this stays
- * rule-based and explainable rather than hidden behind an opaque model
- * call (see "Explainable AI" / section 25). Every number this produces has
- * a reason attached.
+ * Deterministic, rule-based match scoring. Every number comes with the
+ * reasons behind it (matched and missing skills, concerns, positive signals)
+ * so a candidate can see why a job scored the way it did.
  *
- * Honest limitations, on purpose rather than by accident:
- *  - Education matching is a placeholder. The Job entity has no structured
- *    "required education" field — that would need NLP extraction from the
- *    free-text job description, which is the planned job of the Python AI
- *    service, not this engine. Until then, education scoring only checks
- *    whether the candidate's own profile is filled in, not whether it
- *    actually satisfies the role.
+ * Known limitations, documented on purpose:
+ *  - Education scoring only checks that the candidate filled in their
+ *    education. Jobs have no structured "required education" field to
+ *    compare against.
  *  - The configured "job-type" weight (jobpulse.matching.weights.job-type)
  *    is intentionally unused — there's no reliable candidate signal for
  *    employment-type preference yet. The overall score renormalizes across
@@ -59,9 +55,9 @@ public class MatchingService {
 
     /** Recomputes and persists (upsert) the match for one user/job pair. */
     @Transactional
-    public MatchBreakdown computeAndPersist(UUID userId, UUID jobId) {        CandidateProfile profile = candidateProfileRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Complete your profile before requesting a match score"));
+    public MatchBreakdown computeAndPersist(UUID userId, UUID jobId) {
+        CandidateProfile profile = candidateProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("No candidate profile found for this account."));
 
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("No job found with id " + jobId));
@@ -119,14 +115,14 @@ public class MatchingService {
         List<String> positiveSignals = new ArrayList<>();
 
         // ---- Skills ----
-        List<JobSkill> jobSkills = jobSkillRepository.findByJobId(job.getId());
+        List<JobSkill> jobSkills = jobSkillRepository.findWithSkillByJobId(job.getId());
         List<String> requiredSkillNames = jobSkills.stream()
                 .filter(JobSkill::isRequired)
                 .map(js -> js.getSkill().getName())
                 .toList();
 
         Set<String> candidateSkillNamesLower = candidateSkillRepository
-                .findByCandidateProfileId(profile.getId()).stream()
+                .findWithSkillByProfileId(profile.getId()).stream()
                 .map(CandidateSkill::getSkill)
                 .map(s -> s.getName().toLowerCase(Locale.ROOT))
                 .collect(Collectors.toSet());

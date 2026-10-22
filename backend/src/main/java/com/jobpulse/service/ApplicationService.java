@@ -1,25 +1,39 @@
 package com.jobpulse.service;
 
-import com.jobpulse.dto.ApplicationRequest;
-import com.jobpulse.dto.ApplicationResponse;
-import com.jobpulse.dto.ApplicationUpdateRequest;
+import com.jobpulse.dto.application.ApplicationDtos.ApplicationDetailResponse;
+import com.jobpulse.dto.application.ApplicationDtos.ApplicationResponse;
+import com.jobpulse.dto.application.ApplicationDtos.CreateApplicationRequest;
+import com.jobpulse.dto.application.ApplicationDtos.UpdateApplicationRequest;
+import com.jobpulse.entity.ApplicationStatus;
 import com.jobpulse.entity.Job;
 import com.jobpulse.entity.JobApplication;
 import com.jobpulse.entity.User;
+import com.jobpulse.exception.BusinessRuleException;
+import com.jobpulse.exception.DuplicateResourceException;
 import com.jobpulse.exception.ResourceNotFoundException;
+import com.jobpulse.mapper.ApplicationMapper;
 import com.jobpulse.repository.JobApplicationRepository;
 import com.jobpulse.repository.JobRepository;
-import com.jobpulse.repository.MatchScoreRepository;
 import com.jobpulse.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
+/**
+ * The candidate's side of applications.
+ *
+ * Ownership rule: a candidate can only see and change their own
+ * applications. Asking for someone else's id returns 404, the same as an id
+ * that doesn't exist, so the API never confirms that another user's
+ * application exists.
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ApplicationService {
@@ -27,94 +41,103 @@ public class ApplicationService {
     private final JobApplicationRepository applicationRepository;
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
-    private final MatchScoreRepository matchScoreRepository;
+    private final ApplicationWorkflow workflow;
+    private final Clock clock;
+
+    @Transactional
+    public ApplicationDetailResponse apply(UUID candidateId, CreateApplicationRequest request) {
+        Job job = jobRepository.findWithCompanyById(request.jobId())
+                .orElseThrow(() -> new ResourceNotFoundException("This job doesn't exist or has been removed."));
+        if (!job.isOpen()) {
+            throw new BusinessRuleException("This job is no longer accepting applications.");
+        }
+        User candidate = userRepository.getReferenceById(candidateId);
+        String coverLetter = TextNormalizer.clean(request.coverLetter());
+
+        JobApplication application = applicationRepository.findByUserIdAndJobId(candidateId, job.getId())
+                .map(existing -> reapplyIfWithdrawn(existing, candidate, coverLetter))
+                .orElseGet(() -> newApplication(candidate, job, coverLetter));
+
+        log.info("Candidate {} applied to job {} ({})", candidateId, job.getId(), job.getOrigin());
+        // Flush so audit timestamps on the new history row are set before mapping.
+        return toDetail(applicationRepository.saveAndFlush(application));
+    }
 
     @Transactional(readOnly = true)
-    public List<ApplicationResponse> listForUser(UUID userId) {
-        return applicationRepository.findByUserIdOrderByUpdatedAtDesc(userId).stream()
-                .map(this::toResponse)
+    public List<ApplicationResponse> list(UUID candidateId, ApplicationStatus status) {
+        return applicationRepository.findForCandidate(candidateId, status).stream()
+                .map(ApplicationMapper::toResponse)
                 .toList();
     }
 
-    /**
-     * Saves a job into the pipeline. If the user already has an application
-     * record for this job (e.g. they saved it once already), this updates
-     * that record instead of creating a duplicate — matches the DB's
-     * (user_id, job_id) unique constraint.
-     */
-    @Transactional
-    public ApplicationResponse createOrUpdate(UUID userId, ApplicationRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        Job job = jobRepository.findById(request.jobId())
-                .orElseThrow(() -> new ResourceNotFoundException("No job found with id " + request.jobId()));
-
-        JobApplication application = applicationRepository.findByUserIdAndJobId(userId, request.jobId())
-                .orElseGet(() -> JobApplication.builder().user(user).job(job).build());
-
-        JobApplication.Status status = request.status() == null
-                ? (application.getStatus() != null ? application.getStatus() : JobApplication.Status.SAVED)
-                : parseStatus(request.status());
-
-        application.setStatus(status);
-        if (status == JobApplication.Status.APPLIED && application.getAppliedAt() == null) {
-            application.setAppliedAt(Instant.now());
-        }
-        if (request.nextAction() != null) application.setNextAction(request.nextAction());
-        if (request.notes() != null) application.setNotes(request.notes());
-
-        return toResponse(applicationRepository.save(application));
+    @Transactional(readOnly = true)
+    public ApplicationDetailResponse get(UUID candidateId, UUID applicationId) {
+        return toDetail(findOwned(candidateId, applicationId));
     }
 
     @Transactional
-    public ApplicationResponse update(UUID userId, UUID applicationId, ApplicationUpdateRequest request) {
-        JobApplication application = applicationRepository.findById(applicationId)
-                .orElseThrow(() -> new ResourceNotFoundException("No application found with id " + applicationId));
+    public ApplicationDetailResponse update(UUID candidateId, UUID applicationId, UpdateApplicationRequest request) {
+        JobApplication application = findOwned(candidateId, applicationId);
 
-        if (!application.getUser().getId().equals(userId)) {
-            // Treat as not-found rather than forbidden — don't reveal that
-            // another user's application id exists at all.
-            throw new ResourceNotFoundException("No application found with id " + applicationId);
-        }
-
-        if (request.status() != null) {
-            JobApplication.Status newStatus = parseStatus(request.status());
-            application.setStatus(newStatus);
-            if (newStatus == JobApplication.Status.APPLIED && application.getAppliedAt() == null) {
-                application.setAppliedAt(Instant.now());
+        boolean changesPipeline = request.status() != null || request.interviewAt() != null;
+        if (changesPipeline) {
+            if (!candidateManagesStatus(application)) {
+                throw new BusinessRuleException(
+                        "The employer manages this application's status. You can withdraw it instead.");
             }
+            ApplicationStatus next = request.status() != null ? request.status() : application.getStatus();
+            workflow.transition(application, next, request.interviewAt(), application.getUser(), null);
         }
-        if (request.appliedAt() != null) application.setAppliedAt(request.appliedAt());
-        if (request.nextAction() != null) application.setNextAction(request.nextAction());
-        if (request.notes() != null) application.setNotes(request.notes());
+        if (request.notes() != null) application.setNotes(TextNormalizer.clean(request.notes()));
+        if (request.nextAction() != null) application.setNextAction(TextNormalizer.clean(request.nextAction()));
 
-        return toResponse(applicationRepository.save(application));
+        return toDetail(applicationRepository.saveAndFlush(application));
     }
 
-    private JobApplication.Status parseStatus(String raw) {
-        try {
-            return JobApplication.Status.valueOf(raw.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    "Invalid status '" + raw + "'. Must be one of: SAVED, PLANNING, APPLIED, ASSESSMENT, INTERVIEW, OFFER, REJECTED");
-        }
+    @Transactional
+    public ApplicationDetailResponse withdraw(UUID candidateId, UUID applicationId) {
+        JobApplication application = findOwned(candidateId, applicationId);
+        workflow.transition(application, ApplicationStatus.WITHDRAWN, null, application.getUser(), null);
+        log.info("Candidate {} withdrew application {}", candidateId, applicationId);
+        return toDetail(applicationRepository.saveAndFlush(application));
     }
 
-    private ApplicationResponse toResponse(JobApplication app) {
-        var matchScore = matchScoreRepository.findByUserIdAndJobId(app.getUser().getId(), app.getJob().getId());
-        return new ApplicationResponse(
-                app.getId(),
-                app.getJob().getId(),
-                app.getJob().getTitle(),
-                app.getJob().getCompany().getName(),
-                app.getJob().getLocation(),
-                app.getStatus().name(),
-                matchScore.map(com.jobpulse.entity.MatchScore::getOverallScore).orElse(null),
-                app.getAppliedAt(),
-                app.getNextAction(),
-                app.getNotes(),
-                app.getCreatedAt(),
-                app.getUpdatedAt()
-        );
+    private JobApplication newApplication(User candidate, Job job, String coverLetter) {
+        JobApplication application = new JobApplication(candidate, job, Instant.now(clock));
+        application.setCoverLetter(coverLetter);
+        application.recordInitialStatus(candidate);
+        return application;
+    }
+
+    /** One row per (candidate, job), so re-applying after a withdrawal reopens the same row. */
+    private JobApplication reapplyIfWithdrawn(JobApplication existing, User candidate, String coverLetter) {
+        if (existing.getStatus() != ApplicationStatus.WITHDRAWN) {
+            throw new DuplicateResourceException("You've already applied to this job.");
+        }
+        existing.changeStatus(ApplicationStatus.APPLIED, candidate, "Re-applied");
+        existing.setAppliedAt(Instant.now(clock));
+        existing.setInterviewAt(null);
+        if (coverLetter != null) existing.setCoverLetter(coverLetter);
+        return existing;
+    }
+
+    private JobApplication findOwned(UUID candidateId, UUID applicationId) {
+        return applicationRepository.findWithDetailsById(applicationId)
+                .filter(a -> a.belongsTo(candidateId))
+                .orElseThrow(() -> new ResourceNotFoundException("Application not found."));
+    }
+
+    /** For jobs applied to elsewhere there's no employer here, so the candidate tracks the stages. */
+    private boolean candidateManagesStatus(JobApplication application) {
+        return !application.getJob().acceptsInAppApplications();
+    }
+
+    private ApplicationDetailResponse toDetail(JobApplication application) {
+        boolean candidateManages = candidateManagesStatus(application);
+        List<ApplicationStatus> allowed = candidateManages
+                ? workflow.allowedNext(application)
+                : application.getStatus().canMoveTo(ApplicationStatus.WITHDRAWN)
+                    ? List.of(ApplicationStatus.WITHDRAWN) : List.of();
+        return ApplicationMapper.toDetail(application, allowed, candidateManages);
     }
 }

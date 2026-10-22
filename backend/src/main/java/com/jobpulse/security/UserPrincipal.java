@@ -1,5 +1,6 @@
 package com.jobpulse.security;
 
+import com.jobpulse.entity.Role;
 import com.jobpulse.entity.User;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -10,26 +11,33 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * The signed-in user as Spring Security sees it. Controllers receive it via
+ * @AuthenticationPrincipal and pass only the id down to services, which keeps
+ * services free of any web or security types.
+ */
 @Getter
 public class UserPrincipal implements UserDetails {
 
     private final UUID id;
     private final String email;
-    private final String passwordHash;
+    private final String fullName;
+    private final Role role;
     private final boolean active;
-    private final String role;
+    private final String passwordHash;
 
     public UserPrincipal(User user) {
         this.id = user.getId();
         this.email = user.getEmail();
-        this.passwordHash = user.getPasswordHash();
-        this.active = user.isActive();
+        this.fullName = user.getFullName();
         this.role = user.getRole();
+        this.active = user.isActive();
+        this.passwordHash = user.getPasswordHash();
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role));
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
     @Override
@@ -40,21 +48,6 @@ public class UserPrincipal implements UserDetails {
     @Override
     public String getUsername() {
         return email;
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
     }
 
     @Override

@@ -2,34 +2,34 @@ package com.jobpulse.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+/** Cached result of MatchingService for one (candidate, job) pair. */
 @Getter
 @Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "match_scores", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "job_id"}))
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class MatchScore extends BaseEntity {
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "job_id", nullable = false)
     private Job job;
 
@@ -51,15 +51,20 @@ public class MatchScore extends BaseEntity {
     @Column(name = "freshness_score", nullable = false)
     private BigDecimal freshnessScore;
 
-    @Column(name = "matched_skills")
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "matched_skills", columnDefinition = "text[]")
     private List<String> matchedSkills;
 
-    @Column(name = "missing_skills")
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "missing_skills", columnDefinition = "text[]")
     private List<String> missingSkills;
 
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]")
     private List<String> concerns;
 
-    @Column(name = "positive_signals")
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "positive_signals", columnDefinition = "text[]")
     private List<String> positiveSignals;
 
     @Column(name = "computed_at", nullable = false)

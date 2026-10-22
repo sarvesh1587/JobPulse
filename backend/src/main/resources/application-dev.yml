@@ -1,0 +1,12 @@
+# Local development profile (the default when no profile is set).
+
+jobpulse:
+  auth:
+    cookie-secure: false   # local dev runs over plain http://localhost
+  dev-seed:
+    # Password for the demo accounts created by DevDataSeeder. Local use only.
+    password: ${DEV_SEED_PASSWORD:jobpulse-demo}
+
+logging:
+  level:
+    com.jobpulse: DEBUG

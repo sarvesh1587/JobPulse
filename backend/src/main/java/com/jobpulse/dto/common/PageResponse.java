@@ -1,0 +1,29 @@
+package com.jobpulse.dto.common;
+
+import org.springframework.data.domain.Page;
+
+import java.util.List;
+import java.util.function.Function;
+
+/**
+ * A stable JSON shape for paginated results. Serializing Spring's Page
+ * directly exposes internal fields that can change between versions, so
+ * every paged endpoint returns this instead.
+ */
+public record PageResponse<T>(
+        List<T> content,
+        int page,
+        int size,
+        long totalElements,
+        int totalPages
+) {
+    public static <E, T> PageResponse<T> from(Page<E> page, Function<E, T> mapper) {
+        return new PageResponse<>(page.getContent().stream().map(mapper).toList(),
+                page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
+    }
+
+    public static <T> PageResponse<T> of(Page<?> page, List<T> content) {
+        return new PageResponse<>(content, page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages());
+    }
+}
